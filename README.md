@@ -5,64 +5,63 @@ lalu mengunduh file `.txt` yang **urutannya diacak per-NRP** namun hasil
 **TF-IDF-nya tetap sama**. NRP yang diterima mendapat kata kunci "diterima",
 selain itu mendapat versi "ditolak".
 
+Dibangun dengan **Vite** dan dideploy ke **Vercel**. Kunci rahasia + daftar
+NRP disimpan di **environment variables** (tidak di kode sumber).
+
 ## File
 
 | File | Keterangan |
 |---|---|
-| `index.html` | Situs (UI + logika hash & shuffle). Ini yang di-deploy. |
-| `data.js` | Korpus + hash NRP, hasil build. Ikut di-deploy. |
+| `index.html` | Entry Vite (UI). |
+| `src/main.js` | Logika klien: hash NRP, tentukan jenis, acak per-NRP, unduh. |
+| `vite.config.js` | Plugin build-time: baca env + korpus, hitung hash PBKDF2, sediakan `virtual:dataset`. |
+| `corpus_*.txt` | Korpus master (sumber data). |
 | `generate_datasets.py` | Membuat korpus master (`corpus_*.txt`). |
-| `build_website.py` | Build `data.js` + suntik salt ke `index.html`. |
 | `solusi_referensi.py` | Kunci jawaban (cek TF-IDF). |
 | `verifikasi_e2e.js` | Uji end-to-end (Node). |
 | `.env` | **RAHASIA** — kunci + daftar NRP. **Tidak di-commit.** |
 
-## Cara build ulang (jika ganti NRP / korpus / kunci)
+## Environment variables
+
+Salin `.env.example` → `.env` (lokal), atau set di **Vercel → Project →
+Settings → Environment Variables**:
+
+| Var | Keterangan |
+|---|---|
+| `NRP_SECRET_KEY` | Kunci/salt PBKDF2. Generate: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+| `PBKDF2_ITERATIONS` | Iterasi PBKDF2 (default `200000`). |
+| `NRP_DITERIMA` | Daftar NRP diterima, pisah koma. NRP lain otomatis = ditolak. |
+
+Var ini **hanya** dipakai saat build (di server Vercel). Kunci rahasia & NRP
+asli **tidak** masuk ke bundle browser — yang ikut hanya hash PBKDF2, korpus,
+dan salt.
+
+## Lokal
 
 ```bash
-# 1. (opsional) generate korpus baru
-python generate_datasets.py
-
-# 2. edit .env: NRP_SECRET_KEY, NRP_DITERIMA (pisah koma)
-
-# 3. build -> data.js + suntik salt ke index.html
-python build_website.py
-
-# 4. verifikasi
-node verifikasi_e2e.js
+npm install
+cp .env.example .env      # isi NRP_SECRET_KEY, NRP_DITERIMA
+npm run dev               # dev server
+npm run build             # output ke dist/
+npm run preview           # cek hasil build
 ```
 
-## Deploy
+(Opsional) regenerate korpus: `python generate_datasets.py`.
 
-### A. Docker / VPS (disarankan untuk VPS)
+## Deploy ke Vercel
 
-Build file static dulu di host (butuh `.env`), lalu jalankan container.
-Image **hanya** berisi `index.html` + `data.js` — `.env` & sumber tidak ikut
-(lihat `.dockerignore`).
+1. Push repo ke GitHub.
+2. Vercel → **New Project** → import repo. Framework auto-detect: **Vite**.
+3. **Settings → Environment Variables**: tambah `NRP_SECRET_KEY`,
+   `PBKDF2_ITERATIONS`, `NRP_DITERIMA`.
+4. **Deploy.** Tiap ganti NRP/kunci: ubah env var → **Redeploy**.
 
-```bash
-python build_website.py          # hasilkan data.js + suntik salt
-docker compose up -d --build     # serve via nginx
-# situs di http://<ip-vps>:8080  (ubah port di docker-compose.yml)
-```
-
-Tanpa compose:
-```bash
-docker build -t mci-oprec .
-docker run -d -p 8080:80 --restart unless-stopped --name mci-oprec mci-oprec
-```
-
-> Update konten: edit `.env` → `python build_website.py` → `docker compose up -d --build`.
-
-### B. GitHub Pages (alternatif gratis)
-
-Aktifkan: **Settings → Pages → Branch: `main` / root → Save.**
-Situs live di `https://<user>.github.io/<repo>/`.
+CLI: `npm i -g vercel && vercel` (lalu `vercel env add ...` & `vercel --prod`).
 
 ## ⚠️ Keamanan
 
 - `.env` **tidak pernah** di-commit (lihat `.gitignore`).
-- `data.js` hanya berisi **hash PBKDF2** NRP — bukan NRP asli.
+- Bundle hanya berisi **hash PBKDF2** NRP — bukan NRP asli.
 - Karena situs static, salt ikut ke browser: ini **obfuscation kuat**
   (PBKDF2 200k iterasi), bukan irreversible mutlak. Untuk rahasia penuh,
   butuh backend.

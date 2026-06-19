@@ -12,14 +12,46 @@ Output: dua file korpus 'master' (urutan belum diacak).
 Pengacakan urutan per-NRP dilakukan di website (JS), bukan di sini.
 """
 
+import os
 import random
 
+
+def load_env(path=".env"):
+    """Parser .env minimal (tanpa dependency eksternal)."""
+    env = {}
+    if not os.path.exists(path):
+        return env
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            env[k.strip()] = v.strip()
+    return env
+
+
+def parse_keywords(raw, default):
+    """Pisah daftar kata via koma. Kosong -> pakai default."""
+    kata = [k.strip() for k in (raw or "").split(",") if k.strip()]
+    return kata or default
+
+
 # ---------------------------------------------------------------------------
-# 1. Kata kunci jawaban (yang HARUS muncul di puncak ranking TF-IDF)
+# 1. Kata kunci jawaban (yang HARUS muncul di puncak ranking TF-IDF).
+#    Dibaca dari .env (KEYWORD_DITERIMA / KEYWORD_DITOLAK, pisah koma) supaya
+#    jawaban tidak di-hardcode di kode sumber. Kosong -> pakai default.
 # ---------------------------------------------------------------------------
+_env = load_env()
 KEYWORDS = {
-    "diterima": ["selamat", "diterima", "lolos", "berhasil", "bergabung"],
-    "ditolak":  ["semangat", "ditolak", "belum", "coba", "lagi"],
+    "diterima": parse_keywords(
+        _env.get("KEYWORD_DITERIMA"),
+        ["selamat", "diterima", "lolos", "berhasil", "bergabung"],
+    ),
+    "ditolak": parse_keywords(
+        _env.get("KEYWORD_DITOLAK"),
+        ["semangat", "ditolak", "belum", "coba", "lagi"],
+    ),
 }
 
 # Lawan dari setiap jenis -> dipakai sebagai DECOY.

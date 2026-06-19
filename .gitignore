@@ -1,8 +1,11 @@
 # Rahasia — jangan pernah commit
 .env
+.env.local
 
-# File hasil build yang mengandung salt/hash (regenerate dengan build_website.py)
-data.js
+# Build & deps
+node_modules/
+dist/
+.vercel/
 
 # Python
 __pycache__/
